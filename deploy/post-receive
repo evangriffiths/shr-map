@@ -1,0 +1,18 @@
+#!/bin/bash
+set -e
+
+APP_DIR=/opt/shr-map
+GIT_DIR=/opt/shr-map.git
+
+echo "==> Deploying shr-map..."
+
+git --work-tree=$APP_DIR --git-dir=$GIT_DIR checkout -f main
+
+cd $APP_DIR
+bun install
+
+cp deploy/shr-map.service /etc/systemd/system/shr-map.service
+systemctl daemon-reload
+
+systemctl restart shr-map
+echo "==> Deploy complete!"

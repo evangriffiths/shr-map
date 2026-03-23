@@ -1,0 +1,3 @@
+shrmap.evangriffiths.org {
+    reverse_proxy localhost:3002
+}
