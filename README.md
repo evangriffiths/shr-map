@@ -24,29 +24,24 @@ Deployed on a Hetzner VPS at <https://shrmap.evangriffiths.org>.
 
 ### Fresh server setup
 
-1. **SSH into the VPS** and copy `deploy/setup.sh` to the server, then run it:
+1. **Add a DNS A record** for `shrmap.evangriffiths.org` pointing to the server IP.
+
+2. **SSH into the VPS**, clone the repo, and run the setup script:
 
    ```bash
-   bash setup.sh
+   ssh root@<your-ip>
+   git clone https://github.com/evangriffiths/shr-map.git /opt/shr-map
+   bash /opt/shr-map/deploy/setup.sh
    ```
 
-2. **Append the Caddy config** from `deploy/Caddyfile` to `/etc/caddy/Caddyfile`, then restart Caddy:
+   This installs Bun, installs dependencies, sets up the bare git repo with a deploy hook, starts the systemd service, and configures Caddy.
+
+3. **Add `DEPLOY_SSH_KEY` secret** to the GitHub repo for auto-deploy:
 
    ```bash
-   systemctl restart caddy
-   ```
-
-3. **Add a DNS A record** for `shrmap.evangriffiths.org` pointing to the server IP.
-
-4. **First deploy** from your local machine:
-
-   ```bash
-   git remote add deploy root@<your-ip>:/opt/shr-map.git
-   git push deploy main
+   gh secret set DEPLOY_SSH_KEY < ~/.ssh/id_ed25519
    ```
 
 ### Deploying changes
 
-```bash
-git push deploy main
-```
+Pushing to `main` on GitHub automatically deploys via GitHub Actions.
