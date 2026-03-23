@@ -6,7 +6,10 @@ GIT_DIR=/opt/shr-map.git
 
 echo "==> Deploying shr-map..."
 
-git --work-tree=$APP_DIR --git-dir=$GIT_DIR checkout -f main
+export GIT_WORK_TREE=$APP_DIR
+export GIT_DIR=$GIT_DIR
+git checkout -f main
+git reset --hard HEAD
 
 cd $APP_DIR
 bun install
