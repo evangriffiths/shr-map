@@ -117,6 +117,39 @@
       align-self: flex-end;
     }
     .btn-reset:hover { background: #c0392b; }
+
+    .tooltip-wrap {
+      position: relative;
+      cursor: help;
+      border-bottom: 1px dotted #999;
+    }
+    .tooltip-wrap .tooltip-text {
+      display: none;
+      position: absolute;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #333;
+      color: white;
+      font-size: 0.75rem;
+      padding: 6px 10px;
+      border-radius: 4px;
+      width: 260px;
+      text-align: center;
+      margin-bottom: 6px;
+      line-height: 1.4;
+      z-index: 1000;
+    }
+    .tooltip-wrap .tooltip-text::after {
+      content: "";
+      position: absolute;
+      top: 100%;
+      left: 0;
+      width: 100%;
+      height: 12px;
+    }
+    .tooltip-wrap .tooltip-text a { color: #7cb9e8; }
+    .tooltip-wrap:hover .tooltip-text { display: block; }
   </style>
 </head>
 <body>
@@ -206,6 +239,24 @@
       "": "Uncategorised",
     };
 
+    function classifyRace(distanceKm, climbM) {
+      if (!distanceKm || !climbM) return null;
+      const climbPerKm = climbM / distanceKm;
+
+      let severity;
+      if (climbPerKm >= 50) severity = "A";
+      else if (climbPerKm >= 25) severity = "B";
+      else if (climbPerKm >= 20) severity = "C";
+      else return null;
+
+      let distance;
+      if (distanceKm <= 10) distance = "S";
+      else if (distanceKm <= 20) distance = "M";
+      else distance = "L";
+
+      return severity + distance;
+    }
+
     let allRaces = [];
     let markers = [];
     let map;
@@ -219,13 +270,16 @@
     }
 
     function createMarker(race) {
-      const color = CAT_COLORS[race.category] || CAT_COLORS[""];
+      const isCalculated = race._calculatedCategory;
+      const displayCat = race._displayCategory;
+      const color = CAT_COLORS[displayCat] || CAT_COLORS[""];
+      const borderStyle = isCalculated ? "2px dashed rgba(0,0,0,0.5)" : "2px solid rgba(0,0,0,0.3)";
       const icon = L.divIcon({
         className: "custom-marker",
         html: `<div style="
           width: 14px; height: 14px;
           background: ${color};
-          border: 2px solid rgba(0,0,0,0.3);
+          border: ${borderStyle};
           border-radius: 50%;
           box-shadow: 0 1px 3px rgba(0,0,0,0.3);
         "></div>`,
@@ -239,7 +293,8 @@
       });
       const distStr = race.distanceKm ? `${race.distanceKm} km` : "TBC";
       const climbStr = race.climbM ? `${race.climbM} m` : "TBC";
-      const catLabel = race.category ? `<span class="race-cat" style="background:${color}">${race.category}</span>` : "";
+      const catSuffix = isCalculated ? ' <span style="font-size:0.65rem;opacity:0.7;">(est.)</span>' : "";
+      const catLabel = displayCat ? `<span class="race-cat" style="background:${color}">${displayCat}</span>${catSuffix}` : "";
 
       const raceUrl = `https://www.scottishhillrunners.uk/Races.aspx?RaceID=${race.raceId}`;
       const popup = `
@@ -287,7 +342,7 @@
         if (dateTo && race.date > dateTo) return false;
 
         // Category filter
-        if (checkedCats.length > 0 && !checkedCats.includes(race.category)) return false;
+        if (checkedCats.length > 0 && !checkedCats.includes(race._displayCategory)) return false;
 
         return true;
       });
@@ -308,7 +363,7 @@
     }
 
     function buildCategoryCheckboxes(races) {
-      const cats = [...new Set(races.map(r => r.category))].sort();
+      const cats = [...new Set(races.map(r => r._displayCategory))].sort();
       const container = document.getElementById("cat-checkboxes");
 
       cats.forEach(cat => {
@@ -329,8 +384,9 @@
       container.style.display = "flex";
       container.style.flexWrap = "wrap";
       container.style.gap = "12px";
+      container.style.alignItems = "center";
 
-      const catsInUse = [...new Set(allRaces.map(r => r.category))].sort();
+      const catsInUse = [...new Set(allRaces.map(r => r._displayCategory))].sort();
       catsInUse.forEach(cat => {
         const color = CAT_COLORS[cat] || CAT_COLORS[""];
         const label = CAT_LABELS[cat] || cat || "Uncategorised";
@@ -339,6 +395,12 @@
         item.innerHTML = `<span class="legend-dot" style="background:${color}"></span> ${label}`;
         container.appendChild(item);
       });
+
+      // Add calculated indicator to legend
+      const calcItem = document.createElement("div");
+      calcItem.className = "legend-item";
+      calcItem.innerHTML = `<span class="legend-dot" style="background:transparent;border-style:dashed;"></span> <span class="tooltip-wrap">Estimated category<span class="tooltip-text">If not specified by SHR, the race category is calculated using the <a href="https://runtimes.co.uk/an-explanation-of-the-fra-race-classification-system-and-other-abbreviations/" target="_blank" rel="noopener">FRA's formula</a></span></span>`;
+      container.appendChild(calcItem);
     }
 
     function attachListeners() {
@@ -361,6 +423,18 @@
     async function init() {
       const res = await fetch("/api/races");
       allRaces = await res.json();
+
+      // Calculate categories for unclassified races
+      allRaces.forEach(race => {
+        if (race.category) {
+          race._displayCategory = race.category;
+          race._calculatedCategory = false;
+        } else {
+          const calc = classifyRace(race.distanceKm, race.climbM);
+          race._displayCategory = calc || "";
+          race._calculatedCategory = !!calc;
+        }
+      });
 
       initMap();
       buildCategoryCheckboxes(allRaces);
